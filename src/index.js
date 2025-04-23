@@ -15,9 +15,22 @@ import mongoose from 'mongoose';
 import express from 'express';
 import { DB_NAME } from './constants.js';           // Constant for DB name
 import connectDB from './db/index.js';              // Reusable DB connection function
+import { app } from './app.js';
 
 // 🔌 Connect to MongoDB
-connectDB();
+connectDB()
+.then(()=>{
+    app.on("error",(error)=>{
+        console.log("Error: ",error);
+        throw error
+    })
+    app.listen(process.env.PORT || 8000,()=>{
+        console.log(`Server is running at port : ${process.env.PORT}`);
+    })
+})
+.catch((err)=>{
+    console.log("MONGO db connection failed!!!",err);
+})
 
 // 🔎 NOTE: Sometimes the file extension (.js) in import paths is mandatory
 // Especially in ESModule-based Node.js apps — omitting it may cause "module not found" errors
