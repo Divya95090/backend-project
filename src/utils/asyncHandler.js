@@ -21,8 +21,7 @@ export {asyncHandler}
 //         .catch((err) => next(err));
 //     };
 //   };
-  
-  
+
 //   // ✅ Approach 2: Using async/await and try-catch block directly
 //   // This is another way of writing the same thing. It provides more control if you want to customize error responses.
 //   const asyncHandlerVerbose = (fn) => {
@@ -38,22 +37,22 @@ export {asyncHandler}
 //       }
 //     };
 //   };
-  
+
 //   export { asyncHandler, asyncHandlerVerbose };
-  
-  
+
+
 //   /* 
 //   🧠 What's happening here?
-  
+
 //   1️⃣ asyncHandler is a **higher-order function**:
 //      - A higher-order function is a function that accepts another function as an argument and/or returns a function.
 //      - This makes it great for wrapping logic around other functions, like error handling around route handlers.
-  
+
 //   2️⃣ Problem it solves:
 //      - In Express, when an async function throws an error (or rejects a promise), you must manually call `next(error)` to let Express handle it.
 //      - If you forget, the server crashes or hangs, and your error middleware won't catch it.
 //      - Instead of writing `try/catch` in every route, we use a reusable asyncHandler to do that for us.
-  
+
 //   Example without asyncHandler:
 //   ```js
 //   app.get("/route", async (req, res, next) => {
@@ -64,7 +63,7 @@ export {asyncHandler}
 //       next(error); // must manually call this
 //     }
 //   });
-  
+
 
 //higher order function are functions which can accept functions as parameter and returned an enhanced version of that function 
 
