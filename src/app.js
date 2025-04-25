@@ -65,4 +65,22 @@ app.use(cookieParser())
 This makes the server ready to handle real-world production scenarios.
 */
 
+
+
+//routers import 
+import userRouter from './routes/user.routes.js'
+
+
+
+//routes declaration 
+//before we were making routers and controllers using app.get() but now routes and controllers are defined separately but now we have to use middlewares
+
+app.use("/api/v1/users",userRouter)
+
+//this will mean we will be going to http://localhost:8000/users/register
+//this will mean we will be going to http://localhost:8000/api/v1/users/register
+
+
+
+
 export { app }
