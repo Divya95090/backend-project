@@ -3,7 +3,29 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import fs from "fs"
+import fs from "fs";
+import jwt from "jsonwebtoken"
+
+
+//just because we will need to create accessToken and refreshToken a lot of times we are making a general method to create them
+const generateAccessAndRefreshTokens = async (userId)=>{
+    try {
+        const user = await User.findById(userId)
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
+
+        user.refreshToken = refreshToken
+        //we don't have password here so we do this saving 
+        await user.save({validateBeforeSave: false})
+        
+        return {accessToken,refreshToken}
+
+    } catch (error) {
+        throw new ApiError(500,"Something went wrong while generating Access and Refresh Token")
+    }
+}
+
+
 /*
 🧠 Overview of the flow:
 1️⃣ Extract user input from request body.
@@ -136,7 +158,200 @@ const registerUser = asyncHandler(async (req, res) => {
 
 });
 
-export { registerUser };
+
+// 🌟 Controller to handle user login functionality
+
+const loginUser = asyncHandler(async (req, res) => {
+
+    /*
+    🧠 TODOS for login flow:
+    - Take input from user (username or email + password).
+    - Check if the user exists in database.
+    - If user doesn't exist ➔ throw error asking to register.
+    - If user exists ➔ verify password.
+    - If password is correct ➔ generate accessToken and refreshToken.
+    - Send the tokens to frontend via cookies (secure, httpOnly).
+    - Send user info and tokens in the response.
+    */
+
+    // 🛒 Step 1: Take input from the user (from request body)
+    const { username, password, email } = req.body;
+
+    // 🔍 Step 2: Validate input - Either username or email must be provided
+    if (!username && !email) {
+        throw new ApiError(400, "Username or Email is required");
+    }
+
+    // 🔎 Step 3: Search the user in the database by username OR email
+    const user = await User.findOne({
+        $or: [{ username }, { email }]
+    });
+
+    // 🛑 Step 4: If user is not found, throw error (User must register first)
+    if (!user) {
+        throw new ApiError(404, "User does not exist");
+    }
+
+    // 🔐 Step 5: Check if entered password is correct
+    // `isPasswordCorrect` is a method inside user.model which uses bcrypt to compare password
+    const isPasswordValid = await user.isPasswordCorrect(password);
+
+    // 🛑 Step 6: If password is invalid, throw unauthorized error
+    if (!isPasswordValid) {
+        throw new ApiError(401, "Invalid User Credentials");
+    }
+
+    // 🔥 Step 7: If password is correct, generate access and refresh tokens
+    // These tokens are generated using the user's _id
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id);
+
+    // 🧹 Step 8: Fetch fresh user details again, but exclude sensitive fields
+    const LoggedInUser = await User.findById(user._id).select(
+        "-password -refreshToken"
+    );
+    /*
+    - We remove password and refreshToken before sending user data to the frontend for safety.
+    - Only public safe data should be sent to frontend.
+    */
+
+    // 🍪 Step 9: Setup cookie options
+    const options = {
+        httpOnly: true, // 🛡️ Cookies cannot be accessed/modified by client side JavaScript (XSS protection)
+        secure: true,   // 🛡️ Cookies will only be sent over HTTPS connections
+        // (optional) You can add sameSite: 'Strict' or 'Lax' if you want more CSRF protection
+    };
+
+    // 🚀 Step 10: Send the response
+    return res
+        .status(200)
+        // 🍪 Set accessToken and refreshToken as cookies
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    user: LoggedInUser, 
+                    accessToken, 
+                    refreshToken
+                    /*
+                    💬 Why sending accessToken and refreshToken in body too?
+                    - If frontend developer wants, they can manually save tokens in localStorage/sessionStorage etc.
+                    - (Depending on app security requirements.)
+                    */
+                },
+                "User Logged In Successfully"
+            )
+        );
+});
+
+// 🌟 Controller to handle user logout functionality
+
+const logoutUser = asyncHandler(async (req, res) => {
+    /*
+    🧠 TODOS for logout flow:
+    - Remove user's refreshToken from database (important for security).
+    - Clear accessToken and refreshToken cookies from browser.
+    - Send a success response.
+    */
+
+    // 🛠️ Step 1: Find the user by ID (available in req.user) and remove their refreshToken from database
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: {
+                refreshToken: undefined // ⛔ Setting refreshToken as undefined to invalidate it from server side
+            }
+        },
+        {
+            new: true // ✅ Ensures that the updated user object is returned (though we aren't using it here)
+        }
+    );
+
+    // 🍪 Step 2: Define cookie clearing options
+    const options = {
+        httpOnly: true, // 🛡️ Prevents frontend JavaScript from accessing the cookies
+        secure: true    // 🛡️ Ensures cookies are only sent over HTTPS
+    };
+
+    // 🚀 Step 3: Clear the cookies from browser and send response
+    return res
+        .status(200)
+        .clearCookie("accessToken", options) // 🍪 Removing accessToken cookie
+        .clearCookie("refreshToken", options) // 🍪 Removing refreshToken cookie
+        .json(
+            new ApiResponse(200, {}, "User logged out successfully")
+        );
+});
+
+
+// Controller function to refresh the access token when the current one expires
+const refreshAccessToken = asyncHandler(async (req, res) => {
+
+    // Step 1️⃣: Extract the refreshToken from either cookies or request body
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+
+    // Step 2️⃣: If no refresh token is provided, block the request
+    if (!incomingRefreshToken) {
+        throw new ApiError(401, "Unauthorized request - No Refresh Token Provided")
+    }
+
+    try {
+        // Step 3️⃣: Verify the incoming refresh token using REFRESH_TOKEN_SECRET
+        const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET)
+
+        // Step 4️⃣: Find the user based on the decoded token's _id
+        const user = await User.findById(decodedToken?._id)
+
+        // Step 5️⃣: If no user is found, the token is invalid
+        if (!user) {
+            throw new ApiError(401, "Invalid Refresh Token - User not found")
+        }
+
+        // Step 6️⃣: Compare incoming refresh token with the one stored in the DB
+        if (incomingRefreshToken !== user?.refreshToken) {
+            throw new ApiError(401, "Refresh Token is Expired or Already Used")
+        }
+
+        // Step 7️⃣: Define secure cookie options
+        const options = {
+            httpOnly: true, // Cookie cannot be accessed by frontend JavaScript
+            secure: true    // Cookie will only be sent over HTTPS
+        }
+
+        // Step 8️⃣: Generate new access and refresh tokens
+        const { accessToken, newRefreshToken } = await generateAccessAndRefreshTokens(user._id)
+
+        // Step 9️⃣: Send the new tokens back to the client via cookies
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, options) // Store new access token
+            .cookie("refreshToken", newRefreshToken, options) // Store new refresh token
+            .json(
+                new ApiResponse(
+                    200,
+                    {
+                        accessToken,
+                        refreshToken: newRefreshToken
+                    },
+                    "Access token refreshed successfully"
+                )
+            )
+    } catch (error) {
+        // Step 🔟: In case of any error (like token expiry or tampering), throw Unauthorized error
+        throw new ApiError(401, error?.message || "Invalid Refresh Token")
+    }
+})
+
+
+
+
+
+export { registerUser,
+    loginUser,
+    logoutUser,
+    refreshAccessToken
+ };
 
 
 //important note about file handling using multer 

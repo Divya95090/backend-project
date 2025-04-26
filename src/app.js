@@ -67,20 +67,37 @@ This makes the server ready to handle real-world production scenarios.
 
 
 
-//routers import 
-import userRouter from './routes/user.routes.js'
+// 📦 Import user-related routes from the routes folder
+import userRouter from './routes/user.routes.js';
+
+/*
+🚀 Route Declaration & Integration with Express
+
+✅ Background:
+Earlier, we used to define routes directly like:
+    app.get("/register", handlerFunction)
+But now, we're organizing things better:
+    - Routes and controller logic are separated (better structure).
+    - Middleware like multer is used for file handling (e.g., uploads).
+    - Routes are modular, placed in `/routes`.
+
+✅ This line mounts the userRouter on the `/api/v1/users` path:
+    👉 All routes defined inside `user.routes.js` will be prefixed with `/api/v1/users`.
+
+    For example:
+    - If `user.routes.js` has a route like `/register`
+    - Final route becomes: http://localhost:8000/api/v1/users/register
+
+✅ Benefits:
+- Cleaner and scalable route management.
+- Keeps `app.js` lean and focused on high-level configuration.
+*/
+
+app.use("/api/v1/users", userRouter); // Mount user-related routes
+
+// 🌐 Base URL Example:
+// http://localhost:8000/api/v1/users/register
 
 
-
-//routes declaration 
-//before we were making routers and controllers using app.get() but now routes and controllers are defined separately but now we have to use middlewares
-
-app.use("/api/v1/users",userRouter)
-
-//this will mean we will be going to http://localhost:8000/users/register
-//this will mean we will be going to http://localhost:8000/api/v1/users/register
-
-
-
-
-export { app }
+// 🚀 Exporting the Express app instance so it can be used in server.js
+export { app };
