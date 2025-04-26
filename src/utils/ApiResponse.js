@@ -10,7 +10,7 @@ class ApiResponse {
 }
 
 
-
+export {ApiResponse}
 
 /* info about status codes
 Informational responses (100 – 199)
