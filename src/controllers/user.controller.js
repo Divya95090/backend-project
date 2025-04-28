@@ -346,11 +346,191 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 
 
+// Controller to handle user password change functionality
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+
+    // Step 1️⃣: Extract old and new passwords from the request body
+    const { oldPassword, newPassword } = req.body 
+
+    // Step 2️⃣: Find the currently logged-in user using their _id which we have set in verifyJWT middleware
+    const user = await User.findById(req.user?._id);
+
+    // Step 3️⃣: Validate if the old password entered by the user matches the existing password in the database
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+    // Step 4️⃣: If the old password is incorrect, throw an error
+    if (!isPasswordCorrect) {
+        throw new ApiError(400, "Invalid Old Password")
+    }
+
+    // Step 5️⃣: If the old password is correct, update the user's password to the new password
+    user.password = newPassword; // Setting the new password (will be hashed automatically via mongoose middleware)
+
+    // Step 6️⃣: Save the updated user details
+    // Passing validateBeforeSave: false to skip unnecessary validation checks like email format, etc.
+    await user.save({ validateBeforeSave: false });
+
+    // Step 7️⃣: Send a success response after password change
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, {}, "Password Changed Successfully")
+        )
+})
+
+
+// Controller to fetch the currently logged-in user's details
+const getCurrentUser = asyncHandler(async (req, res) => {
+
+    // Step 1️⃣: Directly return the user object
+    // The req.user object was set previously by the verifyJWT middleware after verifying the accessToken
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                req.user, // Sending back the user details (without password and sensitive fields)
+                "Current User Fetched Successfully" // Message indicating successful retrieval
+            )
+        )
+})
+
+
+// Controller to update current user's account details (like fullname and email)
+const updateAccountDetails = asyncHandler(async (req, res) => {
+    
+    const { fullname, email } = req.body;
+
+    // Step 1️⃣: Validate input - make sure at least one field is present
+    if (!(fullname || email)) {
+        throw new ApiError(400, "All fields are required!");
+    }
+
+    // Step 2️⃣: Update user details in the database
+    const user = await User.findByIdAndUpdate(
+        req.user?._id, // The ID is available in req.user because of verifyJWT middleware
+        {
+            $set: {
+                fullname: fullname,
+                email: email
+            }
+        },
+        { new: true } // By setting new: true, MongoDB returns the updated document instead of the old one
+    )
+    .select("-password"); // Step 3️⃣: We don't want to expose the password field in the response
+
+    // Step 4️⃣: Check if user was found and updated
+    if (!user) {
+        throw new ApiError(400, "Invalid Credentials");
+    }
+
+    // Step 5️⃣: Send success response with updated user info
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                user, // returning updated user (without password)
+                "Account Details Updated Successfully" // Success message
+            )
+        );
+});
+
+// Controller to update user's avatar image
+const updateUserAvatar = asyncHandler(async (req, res) => {
+
+    // Step 1️⃣: Get the uploaded avatar file's local path from multer's processed file
+    const avatarLocalPath = req.file?.path;
+
+    // Step 2️⃣: Check if the file is actually uploaded
+    if (!avatarLocalPath) {
+        throw new ApiError(400, "Avatar file is missing");
+    }
+
+    // Step 3️⃣: Upload the avatar to Cloudinary (or any cloud storage you're using)
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+
+    // Step 4️⃣: Validate upload success - make sure Cloudinary returned a URL
+    if (!avatar?.url) {
+        throw new ApiError(400, "Error while uploading avatar");
+    }
+
+    // Step 5️⃣: Update the user's avatar field in the database with the new Cloudinary URL
+    const updatedUser = await User.findByIdAndUpdate(
+        req.user?._id, // user's ID from the verifyJWT middleware
+        {
+            $set: {
+                avatar: avatar.url
+            }
+        },
+        { new: true } // return the updated document
+    ).select("-password"); // Step 6️⃣: Don't send password back in the response
+
+    // Step 7️⃣: Send success response
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                updatedUser, // optional: you can also send updated user info
+                "Avatar Updated Successfully" // Success message
+            )
+        );
+});
+
+// Controller to update user's cover image
+const updateUserCoverImage = asyncHandler(async (req, res) => {
+
+    // Step 1️⃣: Get the uploaded cover image's local path from multer's processed file
+    const coverImageLocalPath = req.file?.path;
+
+    // Step 2️⃣: Check if the cover image file is actually uploaded
+    if (!coverImageLocalPath) {
+        throw new ApiError(400, "Cover Image file is missing");
+    }
+
+    // Step 3️⃣: Upload the cover image to Cloudinary (or any cloud storage)
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+
+    // Step 4️⃣: Validate upload success - make sure Cloudinary returned a URL
+    if (!coverImage?.url) {
+        throw new ApiError(400, "Error while uploading Cover Image");
+    }
+
+    // Step 5️⃣: Update the user's coverImage field in the database with the new Cloudinary URL
+    const updatedUser = await User.findByIdAndUpdate(
+        req.user?._id, // user's ID coming from verifyJWT middleware
+        {
+            $set: {
+                coverImage: coverImage.url
+            }
+        },
+        { new: true } // return the updated document after setting new cover image
+    ).select("-password"); // Step 6️⃣: Exclude password from the response
+
+    // Step 7️⃣: Send success response
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                updatedUser, // sending the updated user object
+                "Cover Image updated Successfully" // Success message
+            )
+        );
+});
+
 
 export { registerUser,
     loginUser,
     logoutUser,
-    refreshAccessToken
+    refreshAccessToken,
+    changeCurrentPassword,
+    getCurrentUser,
+    updateAccountDetails,
+    updateUserAvatar,
+    updateUserCoverImage
  };
 
 
