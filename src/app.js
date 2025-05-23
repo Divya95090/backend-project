@@ -69,6 +69,15 @@ This makes the server ready to handle real-world production scenarios.
 
 // 📦 Import user-related routes from the routes folder
 import userRouter from './routes/user.routes.js';
+import videoRouter from './routes/video.routes.js'
+import healthCheckRouter from "./routes/healthCheck.routes"
+import tweetRouter from "./routes/tweet.routes.js"
+import subscriptionRouter from "./routes/subscription.routes.js"
+import commentRouter from "./routes/comment.routes.js"
+import likeRouter from "./routes/like.routes.js"
+import playlistRouter from "./routes/playlist.routes.js"
+import dashboardRouter from "./routes/dashboard.routes.js"
+
 
 /*
 🚀 Route Declaration & Integration with Express
@@ -98,6 +107,17 @@ app.use("/api/v1/users", userRouter); // Mount user-related routes
 // 🌐 Base URL Example:
 // http://localhost:8000/api/v1/users/register
 
+app.use("/api/v1/videos",videoRouter)
+
+app.use("/api/v1/healthCheck", healthCheckRouter)
+
+app.use("/api/v1/tweets", tweetRouter)
+app.use("/api/v1/subscriptions", subscriptionRouter)
+
+pp.use("/api/v1/comments", commentRouter)
+app.use("/api/v1/likes", likeRouter)
+app.use("/api/v1/playlist", playlistRouter)
+app.use("/api/v1/dashboard", dashboardRouter)
 
 // 🚀 Exporting the Express app instance so it can be used in server.js
 export { app };
